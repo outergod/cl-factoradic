@@ -1,0 +1,5 @@
+cl-factoradic
+=============
+A Common Lisp Library to calculate string permutations based on the factoradic
+number system. Please see http://en.wikipedia.org/wiki/Factoradic if you want to
+know more about the subject.
