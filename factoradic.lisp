@@ -16,59 +16,72 @@
 
 (in-package :cl-factoradic)
 
+(declaim (optimize (speed 3) (debug 0) (safety 0) (space 0)))
+
 (defun factorial (number)
   (labels ((fac (n acc)
-                (cond ((zerop n) 0)
-                      ((= n 1) acc)
-                      (t (fac (1- n) (* n acc))))))
+  (declare (type fixnum n acc))
+             (if (<= n 1)
+                 acc
+               (fac (1- n) (* n acc)))))
     (fac number 1)))
 
 (defun create-factoradices-until (function)
   (collect-until #'factorial function 0 #'1+))
 
 (defun factoradices (count)
+  (declare (type fixnum count))
   (create-factoradices-until #'(lambda (seq n)
-                                 (declare (ignore seq))
+                                 (declare (ignore seq) (type fixnum n))
                                  (>= n count))))
 
 (defun factoradices-for (number)
-  (rest (create-factoradices-until #'(lambda (seq n)
-                                       (declare (ignore n))
-                                       (> (or (first seq) 0) number)))))
+  (declare (type fixnum number))
+  (if (= number 0)
+      (list 0)
+    (rest (create-factoradices-until #'(lambda (seq n)
+                                         (declare (ignore n))
+                                         (> (or (the (or fixnum null) (first seq)) 0) number))))))
 
 (defun decimal-to-factoradic (number)
   (labels ((dtf (n radices acc)
-                (if (single radices) (nconc acc (list 0))
-                  (multiple-value-bind (value rem) (mod-rest n (first radices))
-                    (dtf rem (rest radices) (nconc acc (list value)))))))
+             (if (single radices) (nconc acc (list 0))
+               (multiple-value-bind (value rem) (mod-rest n (first radices))
+                 (dtf rem (rest radices) (nconc acc (list value)))))))
   (dtf number (factoradices-for number) nil)))
 
 (defun factoradic-permutation (sequence number)
   (labels ((permutate (factors seq acc)
-                        (if (null factors) acc
-                          (permutate (rest factors)
-                                     (remove-at seq (first factors))
-                                     (nconc acc (list (nth (first factors) seq)))))))
+             (if (null factors) acc
+               (permutate (rest factors)
+                          (remove-at seq (first factors))
+                          (nconc acc (list (nth (first factors) seq)))))))
       (permutate (set-list-left (decimal-to-factoradic number)
                                 (length sequence) :pad-element 0) sequence nil)))
-
-  ;; (let ((vector (coerce sequence 'vector)))
-  ;;   (loop for i in (set-list-left (decimal-to-factoradic number)
-  ;;                                 (length vector) :pad-element 0)
-  ;;         for elt = (elt vector i)
-  ;;         do (delete-at vector i)
-  ;;         collect elt)))
-
 
 (defun last-permutation (list)
   (1- (factorial (length list))))
 
-(defun permutations (list &key (start 0) (end (last-permutation list)))
+(defun permutations (sequence &key (start 0) (end (last-permutation sequence)))
   (mapcan #'(lambda (n)
-              (list (factoradic-permutation list n)))
+              (list (factoradic-permutation sequence n)))
           (number-sequence start end)))
 
-(defun dump-string-permutations (string)
-  (dolist (permutation (permutations (coerce string 'list)))
-    (format *standard-output* "~{~a~}~%" permutation)))
+(defun dump-string-permutations (string &optional (stream *standard-output*))
+  (let ((sequence (coerce string 'list)))
+    (do ((i 0 (1+ i)))
+        ((> i (last-permutation sequence)) nil)
+      (format stream "~{~a~}~%" (factoradic-permutation sequence i)))))
 
+;; FACTORADIC> (time
+;;              (let ((sequence (coerce "alexander" 'list)))
+;;                (do ((i 0 (1+ i)))
+;;                    ((> i (last-permutation sequence)) nil)
+;;                  (factoradic-permutation sequence i))))
+;; Evaluation took:
+;;   9.071 seconds of real time
+;;   9.026627 seconds of total run time (8.966636 user, 0.059991 system)
+;;   [ Run times consist of 0.131 seconds GC time, and 8.896 seconds non-GC time. ]
+;;   99.51% CPU
+;;   14,477,223,156 processor cycles
+;;   253,092,160 bytes consed
